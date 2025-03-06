@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "Xbox 360",
+            "includePath": [
+                "${XEDK}/include/xbox",
+                "include"
+            ],
+            "defines": [
+                "_DEBUG",
+                "_XBOX"
+            ],
+            "compilerPath": "${XEDK}/bin/win32/cl.exe",
+            "cStandard": "c89",
+            "intelliSenseMode": "msvc-x86"
+        }
+    ],
+    "version": 4
+}

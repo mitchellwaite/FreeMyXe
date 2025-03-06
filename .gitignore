@@ -1,0 +1,9 @@
+build/
+out/
+package/
+*.exe
+*.xex
+*.dll
+*.pdb
+*.xdb
+*.obj
