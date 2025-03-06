@@ -42,6 +42,42 @@ static uint8_t memory_protection_bytecode[] =
     0x38, 0x80, 0x00, 0x07, 0x7C, 0x21, 0x20, 0x78, 0x7C, 0x35, 0xEB, 0xA6, 0x48, 0x00, 0x11, 0xC2
 };
 
+// this doesn't work!
+void ApplyXeBuildPatches(uint8_t *patch_data)
+{
+    uint32_t *patches = (uint32_t *)patch_data;
+    while (1)
+    {
+        uint32_t length;
+        size_t size;
+        int i = 0;
+        // get the address - if it's 0xFFFFFFFF we've hit the end
+        uint32_t address = patches[0];
+        if (address == 0xFFFFFFFF)
+            break;
+        // get the length and byte size of the patch
+        length = patches[1];
+        size = length * sizeof(uint32_t);
+        patches += 2;
+        // print info
+        DbgPrint("0x%08x: 0x%x words (0x%x bytes)\n", address, length, size);
+        for (i = 0; i < length; i++)
+        {
+            if (address > 0x40000)
+            {
+                // this isn't correct - the whole system locks up
+                uint64_t val = (*(uint64_t *)(0x80000000 | (address - 4)) & 0xFFFFFFFF00000000) | patches[i];
+                WriteHypervisorUInt64_RMCI(address, val);
+            }
+            else
+            {
+                WriteHypervisorUInt32(address, patches[i]);
+            }
+        }
+        patches += length;
+    }
+}
+
 void __cdecl main()
 {
     uint8_t cpu_key[0x10];
@@ -75,6 +111,9 @@ void __cdecl main()
     wsprintfW(dialog_text_buffer, L"About to start patching HV and kernel...\n\nYour CPU key is:\n%08X%08X%08X%08X\n\ngithub.com/InvoxiPlayGames/FreeMyXe", *(uint32_t *)(cpu_key + 0x0), *(uint32_t *)(cpu_key + 0x4), *(uint32_t *)(cpu_key + 0x8), *(uint32_t *)(cpu_key + 0xC));
     MessageBox(dialog_text_buffer);
 
+    // launch xell
+    //HypervisorExecute(0x800000001c040000, xell2f, sizeof(xell2f));
+
     DbgPrint("Writing syscall 0 backdoor...\n");
     // install the syscall 0 backdoor at a spare place in memory
     WriteHypervisor(0x0000B564, freeboot_memcpy_bytecode, sizeof(freeboot_memcpy_bytecode));
@@ -84,7 +123,7 @@ void __cdecl main()
     DbgPrint("Writing memory protection patches...\n");
     // write the patched memory protection instructions
     WriteHypervisor(0x0000154C, memory_protection_bytecode, sizeof(memory_protection_bytecode));
-	// jump to the above shellcode
+    // jump to the above shellcode
     WriteHypervisorUInt32(0x000011BC, 0x4800154E);
     HypervisorClearCache(0x0000154C);
 
@@ -150,7 +189,7 @@ void __cdecl main()
         WriteHypervisorUInt64_RMCI(MmGetPhysicalAddress(pdwFunction), valTo);
         HypervisorClearCache(MmGetPhysicalAddress(pdwFunction));
     }
-
+    
     DbgPrint("Done\n");
 
     Sleep(500);

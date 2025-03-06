@@ -11,3 +11,4 @@ void WriteHypervisorUInt32(uint32_t hv_address, uint32_t value);
 void WriteHypervisorUInt64(uint32_t hv_address, uint64_t value);
 void WriteHypervisorUInt32_RMCI(uint32_t address, uint32_t value);
 void WriteHypervisorUInt64_RMCI(uint32_t address, uint64_t value);
+void HypervisorExecute(uint64_t address, void *code, size_t length);

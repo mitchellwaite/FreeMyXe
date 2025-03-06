@@ -6,3 +6,4 @@ extern unsigned int ExCreateThread(PHANDLE pHandle, DWORD dwStackSize, LPDWORD l
 extern void XapiThreadStartup(void (__cdecl *StartRoutine)(void *), void * StartContext);
 extern unsigned int XexGetModuleHandle(PCSTR moduleName, PHANDLE hand);
 extern unsigned int XexGetProcedureAddress(HANDLE hand, DWORD dwOrdinal, PVOID Address);
+extern unsigned int XexLoadImage(LPCSTR szXexName, DWORD dwModuleTypeFlags, DWORD dwMinimumVersion, PHANDLE pHandle);

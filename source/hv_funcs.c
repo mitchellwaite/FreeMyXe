@@ -144,6 +144,28 @@ void WriteHypervisorUInt64_RMCI(uint32_t address, uint64_t value)
     XPhysicalFree(shellcode_buf);
 }
 
+void HypervisorExecute(uint64_t address, void *code, size_t length)
+{
+    uint64_t hv_target = GetHVTargetAddress(address);
+    // allocate a buffer for our write 
+    uint8_t *payload_buf = (uint8_t *)XPhysicalAlloc(0x40000, MAXULONG_PTR, 0, PAGE_READWRITE);
+    uint64_t payload_addr = 0x8000000000000000 | MmGetPhysicalAddress(payload_buf);
+    memcpy(payload_buf, code, length);
+    {
+        // allocate a buffer for our freeboot memcpy
+        uint8_t *shellcode_buf = (uint8_t *)XPhysicalAlloc(0x1000, MAXULONG_PTR, 0, PAGE_READWRITE);
+        uint64_t shellcode_addr = 0x8000000000000000 | MmGetPhysicalAddress(shellcode_buf);
+        memcpy(shellcode_buf, freeboot_memcpy_bytecode, sizeof(freeboot_memcpy_bytecode));
+        // patch the freeboot memcpy to always have r4 as hv execute (4) and turn the beq after to a b
+        *(uint32_t *)(shellcode_buf + 0x8) = LI(4, 4);
+        *(uint16_t *)(shellcode_buf + 0xC) = 0x4800;
+        // use the hvxpostoutput backdoor to perform the memcpy
+        HvxPostOutputMemcpy(0x72627472, shellcode_addr, address, payload_addr, 0x40000);
+        XPhysicalFree(shellcode_buf);
+    }
+    XPhysicalFree(payload_buf);
+}
+
 void WriteHypervisorUInt32_RMCI(uint32_t address, uint32_t value)
 {
     uint64_t hv_target = GetHVTargetAddress(address);
