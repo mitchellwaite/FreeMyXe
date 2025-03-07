@@ -3,6 +3,7 @@
 #include "xboxkrnl.h"
 #include "ppcasm.h"
 #include "hv_funcs.h"
+#include "version.h"
 
 static LPWSTR buttons[1] = {L"OK"};
 static MESSAGEBOX_RESULT result;
@@ -11,7 +12,7 @@ static wchar_t dialog_text_buffer[256];
 
 void MessageBox(wchar_t *text)
 {
-    if (XShowMessageBoxUI(0, L"FreeMyXe beta1", text, 1, buttons, 0, XMB_ALERTICON, &result, &overlapped) == ERROR_IO_PENDING)
+    if (XShowMessageBoxUI(0, L"FreeMyXe" FREEMYXE_VERSION, text, 1, buttons, 0, XMB_ALERTICON, &result, &overlapped) == ERROR_IO_PENDING)
     {
         while (!XHasOverlappedIoCompleted(&overlapped))
             Sleep(50);
@@ -81,9 +82,6 @@ void ApplyXeBuildPatches(uint8_t *patch_data)
 void __cdecl main()
 {
     uint8_t cpu_key[0x10];
-    HANDLE hThread;
-    DWORD threadId;
-
     memset(cpu_key, 0, sizeof(cpu_key));
 
     DbgPrint("FreeMyXe!\n");
