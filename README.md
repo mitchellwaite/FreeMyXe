@@ -26,12 +26,13 @@ for some.
   a modded console. (useful for Simple 360 NAND Flasher, XeLLLaunch, etc)
 * Allows more homebrew be able to be launched without erroring back to
   dashboard.
+* Fixes the ring of light / controller syncing bug after using BadUpdate.
+* Allows launching `xell-1f.bin` from the payload folder.
 * Patches USB controller authentication check (a-la "UsbdSecPatch") to let
   certain compatible controllers and adapters work. That's for you, Mario.
 
 ## TODO
 
-* Launching XeLL
 * Userland memory protection patches
 * Actual patch compiler and loader
 * Daaaashlaaaaaaunch?
