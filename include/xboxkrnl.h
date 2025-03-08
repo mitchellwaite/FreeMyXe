@@ -7,3 +7,4 @@ extern void XapiThreadStartup(void (__cdecl *StartRoutine)(void *), void * Start
 extern unsigned int XexGetModuleHandle(PCSTR moduleName, PHANDLE hand);
 extern unsigned int XexGetProcedureAddress(HANDLE hand, DWORD dwOrdinal, PVOID Address);
 extern unsigned int XexLoadImage(LPCSTR szXexName, DWORD dwModuleTypeFlags, DWORD dwMinimumVersion, PHANDLE pHandle);
+extern void HalSendSMCMessage(LPVOID pCommandBuffer, LPVOID pRecvBuffer);

@@ -146,7 +146,6 @@ void WriteHypervisorUInt64_RMCI(uint32_t address, uint64_t value)
 
 void HypervisorExecute(uint64_t address, void *code, size_t length)
 {
-    uint64_t hv_target = GetHVTargetAddress(address);
     // allocate a buffer for our write 
     uint8_t *payload_buf = (uint8_t *)XPhysicalAlloc(0x40000, MAXULONG_PTR, 0, PAGE_READWRITE);
     uint64_t payload_addr = 0x8000000000000000 | MmGetPhysicalAddress(payload_buf);

@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include "xboxkrnl.h"
 #include "ppcasm.h"
+#include "fs.h"
 #include "hv_funcs.h"
 #include "version.h"
 
@@ -12,11 +13,22 @@ static wchar_t dialog_text_buffer[256];
 
 void MessageBox(wchar_t *text)
 {
-    if (XShowMessageBoxUI(0, L"FreeMyXe" FREEMYXE_VERSION, text, 1, buttons, 0, XMB_ALERTICON, &result, &overlapped) == ERROR_IO_PENDING)
+    if (XShowMessageBoxUI(0, L"FreeMyXe " FREEMYXE_VERSION, text, 1, buttons, 0, XMB_ALERTICON, &result, &overlapped) == ERROR_IO_PENDING)
     {
         while (!XHasOverlappedIoCompleted(&overlapped))
             Sleep(50);
     }
+}
+
+int MessageBoxMulti(wchar_t *text, wchar_t *button1, wchar_t *button2)
+{
+    LPWSTR multiButtons[2] = {button1, button2};
+    if (XShowMessageBoxUI(0, L"FreeMyXe " FREEMYXE_VERSION, text, 2, multiButtons, 0, XMB_ALERTICON, &result, &overlapped) == ERROR_IO_PENDING)
+    {
+        while (!XHasOverlappedIoCompleted(&overlapped))
+            Sleep(50);
+    }
+    return result.dwButtonPressed;
 }
 
 // the Freeboot syscall 0 backdoor for 17559
@@ -79,12 +91,55 @@ void ApplyXeBuildPatches(uint8_t *patch_data)
     }
 }
 
+static uint8_t xell_buffer[0x40000];
+void LaunchXell()
+{
+    int xell_file = FSOpenFile("GAME:\\xell-1f.bin");
+    int xell_filesize = 0;
+    int xell_bytesread = 0;
+    // check for glitch xell
+    if (xell_file == -1)
+    {
+        xell_file = FSOpenFile("GAME:\\xell-gggggg.bin");
+    }
+    // if we don't have either then fail, we shouldn't have gotten here
+    if (xell_file == -1)
+    {
+        DbgPrint("Failed to find XeLL bin!\n");
+        return;
+    }
+    xell_filesize = FSFileSize(xell_file);
+    if (xell_filesize != sizeof(xell_buffer))
+    {
+        DbgPrint("XeLL file incorrect size!\n");
+        FSCloseFile(xell_file);
+        return;
+    }
+    xell_bytesread = FSReadFile(xell_file, 0, xell_buffer, sizeof(xell_buffer));
+    if (xell_bytesread != sizeof(xell_buffer))
+    {
+        DbgPrint("XeLL couldn't read all bytes!\n");
+        FSCloseFile(xell_file);
+        return;
+    }
+    // attempt to launch XeLL
+    HypervisorExecute(0x800000001c000000, xell_buffer, sizeof(xell_buffer));
+}
+
 void __cdecl main()
 {
     uint8_t cpu_key[0x10];
+    // thanks libxenon!
+    uint8_t rol_led_buf[16] = {0x99,0x00,0x00,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    int has_xell = 0;
+
     memset(cpu_key, 0, sizeof(cpu_key));
 
     DbgPrint("FreeMyXe!\n");
+
+    // call the boot animation
+    DbgPrint("Sending LED command to fix ring of light state\n");
+    HalSendSMCMessage(rol_led_buf, NULL);
 
     if (HvxGetVersions(0x72627472, 1, 0, 0, 0) == 1)
     {
@@ -103,14 +158,27 @@ void __cdecl main()
     // read out the CPU key
     ReadHypervisor(cpu_key, 0x20, sizeof(cpu_key));
 
+    // check if we have a xell file
+    has_xell = FSFileExists("GAME:\\xell-1f.bin") || FSFileExists("GAME:\\xell-gggggg.bin");
+
     DbgPrint("CPU key: %08X%08X%08X%08X\n",
         *(uint32_t *)(cpu_key + 0x0), *(uint32_t *)(cpu_key + 0x4), *(uint32_t *)(cpu_key + 0x8), *(uint32_t *)(cpu_key + 0xC));
 
-    wsprintfW(dialog_text_buffer, L"About to start patching HV and kernel...\n\nYour CPU key is:\n%08X%08X%08X%08X\n\ngithub.com/InvoxiPlayGames/FreeMyXe", *(uint32_t *)(cpu_key + 0x0), *(uint32_t *)(cpu_key + 0x4), *(uint32_t *)(cpu_key + 0x8), *(uint32_t *)(cpu_key + 0xC));
-    MessageBox(dialog_text_buffer);
+    wsprintfW(dialog_text_buffer, L"About to start patching HV and kernel...\n\nYour CPU key is:\n%08X%08X%08X%08X\n\nWrite that down and keep it safe!", *(uint32_t *)(cpu_key + 0x0), *(uint32_t *)(cpu_key + 0x4), *(uint32_t *)(cpu_key + 0x8), *(uint32_t *)(cpu_key + 0xC));
 
-    // launch xell
-    //HypervisorExecute(0x800000001c040000, xell2f, sizeof(xell2f));
+    if (has_xell)
+    {
+        int pick_result = MessageBoxMulti(dialog_text_buffer, L"OK", L"Launch XeLL instead");
+        if (pick_result == 1)
+        {
+            LaunchXell();
+            MessageBox(L"Failed to launch XeLL?! Oh well, I'll patch the HV and kernel anyway...");
+        }
+    }
+    else
+    {
+        MessageBox(dialog_text_buffer);
+    }
 
     DbgPrint("Writing syscall 0 backdoor...\n");
     // install the syscall 0 backdoor at a spare place in memory
@@ -193,6 +261,6 @@ void __cdecl main()
     Sleep(500);
 
     buttons[0] = L"Yay!";
-    wsprintfW(dialog_text_buffer, L"Hypervisor and kernel have been patched!\n\nYour CPU key is:\n%08X%08X%08X%08X\n\ngithub.com/InvoxiPlayGames/FreeMyXe", *(uint32_t *)(cpu_key + 0x0), *(uint32_t *)(cpu_key + 0x4), *(uint32_t *)(cpu_key + 0x8), *(uint32_t *)(cpu_key + 0xC));
+    wsprintfW(dialog_text_buffer, L"Hypervisor and kernel have been patched!\n\nYour CPU key is:\n%08X%08X%08X%08X\n\nSource code for FreeMyXe:\ngithub.com/InvoxiPlayGames/FreeMyXe\n\nHave fun!", *(uint32_t *)(cpu_key + 0x0), *(uint32_t *)(cpu_key + 0x4), *(uint32_t *)(cpu_key + 0x8), *(uint32_t *)(cpu_key + 0xC));
     MessageBox(dialog_text_buffer);
 }
