@@ -78,6 +78,32 @@ static uint8_t memory_protection_bytecode[] =
     0x38, 0x80, 0x00, 0x07, 0x7C, 0x21, 0x20, 0x78, 0x7C, 0x35, 0xEB, 0xA6, 0x48, 0x00, 0x11, 0xC2
 };
 
+// the XEX key derivation patches for 17559
+static uint8_t xex_key_derivation_bytecode[] =
+{
+    0x2B, 0x3C, 0x00, 0x00, 0x41, 0x9A, 0x00, 0x30, 0x2F, 0x03, 0x00, 0x00, 0x40, 0x9A, 0x00, 0x10, 
+    0x38, 0x80, 0x00, 0xF0, 0x48, 0x00, 0x00, 0x18, 0x60, 0x00, 0x00, 0x00, 0x2B, 0x1D, 0x00, 0x00, 
+    0x38, 0x9F, 0x04, 0x40, 0x40, 0x9A, 0x00, 0x08, 0x38, 0x80, 0x00, 0x54, 0x7F, 0x83, 0xE3, 0x78, 
+    0x4B, 0xFF, 0x65, 0xC1, 0x3B, 0xE0, 0x00, 0x00, 
+};
+
+// dashlaunch loading kernel bytecode for 17559
+static uint8_t dashlaunch_loading_bytecode[176] =
+{
+    0x40, 0x98, 0x00, 0x08, 0x4E, 0x80, 0x00, 0x20, 0x3C, 0x60, 0x80, 0x10, 0x3C, 0xA0, 0x00, 0x00, 
+    0x38, 0x80, 0x00, 0x00, 0x60, 0x84, 0x00, 0x08, 0x60, 0x63, 0xBF, 0xD0, 0x38, 0xC0, 0x00, 0x00, 
+    0x4B, 0xF7, 0x18, 0x61, 0x38, 0x60, 0x00, 0x00, 0x3C, 0x80, 0x80, 0x10, 0x60, 0x84, 0xBF, 0xEC, 
+    0x4C, 0x00, 0x01, 0x2C, 0x90, 0x64, 0x00, 0x00, 0x4B, 0xF5, 0x54, 0x64, 0x38, 0xA1, 0x00, 0x54, 
+    0x3C, 0xE0, 0x80, 0x10, 0x60, 0xE7, 0xBF, 0xEC, 0x81, 0x07, 0x00, 0x00, 0x4C, 0x00, 0x01, 0x2C, 
+    0x2B, 0x08, 0x00, 0x00, 0x41, 0x9A, 0x00, 0x0C, 0x7F, 0xFF, 0xFB, 0x78, 0x4B, 0xFF, 0xFF, 0xEC, 
+    0x4E, 0x80, 0x00, 0x20, 0x2B, 0x03, 0x00, 0x14, 0x40, 0x9A, 0x00, 0x24, 0x3C, 0xE0, 0x80, 0x10, 
+    0x60, 0xE7, 0xBF, 0xEC, 0x81, 0x07, 0x00, 0x00, 0x4C, 0x00, 0x01, 0x2C, 0x2B, 0x08, 0x00, 0x00, 
+    0x41, 0x9A, 0x00, 0x0C, 0x7F, 0xFF, 0xFB, 0x78, 0x4B, 0xFF, 0xFF, 0xEC, 0x4B, 0xFF, 0xC4, 0x44, 
+    0x5C, 0x44, 0x65, 0x76, 0x69, 0x63, 0x65, 0x5C, 0x46, 0x6C, 0x61, 0x73, 0x68, 0x5C, 0x6C, 0x61, 
+    0x75, 0x6E, 0x63, 0x68, 0x2E, 0x78, 0x65, 0x78, 0x00, 0x00, 0x00, 0x00, 0x12, 0x34, 0x56, 0x78, 
+} ;
+
+
 // this doesn't work!
 void ApplyXeBuildPatches(uint8_t *patch_data)
 {
@@ -235,22 +261,14 @@ void __cdecl main()
     HypervisorClearCache(0x0000154C);
 
     DbgPrint("Writing expansion signature patches...\n");
-    WriteHypervisorUInt32(0x00030894, LI(3, 1)); // call to XeCryptBnQwBeSigVerify
-    WriteHypervisorUInt32(0x00030914, LI(3, 0)); // call to memcmp
-    HypervisorClearCache(0x00030894);
-    HypervisorClearCache(0x00030914);
-
-    /*
-    DbgPrint("Writing expansion signature patches...\n");
     // HvxExpansionInstall
     WriteHypervisorUInt32(0x0003089c, 0x409A0008); // replace "sig != TRUE -> fail" check with a skip of the next byte if the sig was correct
-    WriteHypervisorUInt32(0x00030970, LI(29, 0)); // set a variable to 0 to avoid AES decryption
-    WriteHypervisorUInt32(0x00030974, NOP); // skip another validity check? idk
-    WriteHypervisorUInt32(0x00030978, NOP);
+    WriteHypervisorUInt32(0x000308a0, LI(29, 0)); // set a variable to 0 to avoid AES decryption
+    WriteHypervisorUInt32(0x000308a4, NOP); // skip another validity check? idk
+    WriteHypervisorUInt32(0x000308a8, NOP);
     WriteHypervisorUInt32(0x000304e8, NOP); // remove flag check
     WriteHypervisorUInt32(0x000304fc, NOP); // remove version check
     HypervisorClearCache(0x0003089c);
-    HypervisorClearCache(0x00030970);
     HypervisorClearCache(0x000304e8);
 
     DbgPrint("Writing important patches...\n");
@@ -266,12 +284,24 @@ void __cdecl main()
     WriteHypervisorUInt32(0x0002AA80, NOP);
     WriteHypervisorUInt32(0x0002AA8C, NOP);
     HypervisorClearCache(0x0002AA80);
-    // HvxCreateImageMapping/HvxImageTransformKey subroutine, checks some key against 0x10010
+    // HvxCreateImageMapping/HvxImageTransformKey subroutine, checks the media ID
     WriteHypervisorUInt64(0x00024D58, returnTrue);
     HypervisorClearCache(0x00024D58);
     // HvxCreateImageMapping remove segment hash check
     WriteHypervisorUInt32(0x0002CAE8, LI(3, 0));
     HypervisorClearCache(0x0002CAE8);
+    // XEX AES key derivation
+    WriteHypervisor(0x00029B08, xex_key_derivation_bytecode, sizeof(xex_key_derivation_bytecode));
+    HypervisorClearCache(0x00029B08);
+    // HvxCreateImageMapping hash check patch
+    WriteHypervisorUInt32(0x0002CAE8, LI(3, 0));
+    HypervisorClearCache(0x0002CAE8);
+    // HvxCreateImageMapping keys flag check patch
+    WriteHypervisorUInt32(0x0002CDD8, NOP);
+    HypervisorClearCache(0x0002CDD8);
+    // HvxImageTransformImageKey protected flag check patch
+    WriteHypervisorUInt32(0x0002B778, NOP);
+    HypervisorClearCache(0x0002B778);
 
     DbgPrint("Writing XeKeys patches...\n");
     WriteHypervisorUInt64(0x00006BB0, returnZero); // HvxSecuritySetDetected
@@ -286,8 +316,6 @@ void __cdecl main()
     WriteHypervisorUInt32(0x0000813C, 0x48000030); // HvxKeysGetKey skip over key_flags check
     HypervisorClearCache(0x0000813C);
 
-    */
-
     DbgPrint("HV patched! Patching kernel\n");
 
     {
@@ -301,8 +329,6 @@ void __cdecl main()
         XexGetProcedureAddress(hKernel, 600, &pdwFunction);
         WriteHypervisorUInt64_RMCI(MmGetPhysicalAddress(pdwFunction), returnTrue);
         HypervisorClearCache(MmGetPhysicalAddress(pdwFunction));
-        //pdwFunction[0] = LI(3, 1);
-        //pdwFunction[1] = BLR;
 
         // patch XeKeysVerifyPIRSSignature
         XexGetProcedureAddress(hKernel, 862, &pdwFunction);
@@ -344,6 +370,34 @@ void __cdecl main()
         pdwFunction = (PDWORD)0x80078eb0;
         valTo = (((uint64_t)LI(3, 1)) << 32) | ADDI(1, 1, 0x190);
         WriteHypervisorUInt64_RMCI(MmGetPhysicalAddress(pdwFunction), valTo);
+        HypervisorClearCache(MmGetPhysicalAddress(pdwFunction));
+
+        // XexpLoadFile patch: flag check in XEX headers after RtlImageXexHeaderString
+        pdwFunction = (PDWORD)0x8007C634;
+        valTo = (((uint64_t)LI(11, 0)) << 32) | 0x556b0043; // rlwinm r11, r11, 0, 1, 1
+        WriteHypervisorUInt64_RMCI(MmGetPhysicalAddress(pdwFunction), valTo);
+        HypervisorClearCache(MmGetPhysicalAddress(pdwFunction));
+
+        // XexpLoadFile patch: flag check in XEX headers after RtlImageXexHeaderField
+        pdwFunction = (PDWORD)0x8007c684;
+        valTo = (((uint64_t)LI(11, 0)) << 32) | 0x556b0043; // rlwinm r11, r11, 0, 2, 2
+        WriteHypervisorUInt64_RMCI(MmGetPhysicalAddress(pdwFunction), valTo);
+        HypervisorClearCache(MmGetPhysicalAddress(pdwFunction));
+
+        // XexpLoadFile patch: call to RtlImageXexHeaderString
+        pdwFunction = (PDWORD)0x8007C5E8;
+        valTo = (((uint64_t)LI(3, 0)) << 32) | 0x28030000; // cmplwi r3, 0
+        WriteHypervisorUInt64_RMCI(MmGetPhysicalAddress(pdwFunction), valTo);
+        HypervisorClearCache(MmGetPhysicalAddress(pdwFunction));
+
+        // XeKeysConsoleSignatureVerification patch
+        pdwFunction = (PDWORD)0x8010BF20;
+        valTo = 0x2B05000038600001; // cmplwi r5, 0; li r3, 1;
+        WriteHypervisorUInt64_RMCI(MmGetPhysicalAddress(pdwFunction), valTo);
+        valTo = 0x419A000890650000; // beq to_the_blr; stw r5, 0(r3)
+        WriteHypervisorUInt64_RMCI(MmGetPhysicalAddress(pdwFunction) + 0x8, valTo);
+        valTo = 0x4e80002000000000; // blr
+        WriteHypervisorUInt64_RMCI(MmGetPhysicalAddress(pdwFunction) + 0x10, valTo);
         HypervisorClearCache(MmGetPhysicalAddress(pdwFunction));
     }
 
