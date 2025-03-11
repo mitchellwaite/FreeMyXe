@@ -2,8 +2,8 @@
 
 by Emma / InvoxiPlayGames
 
-Xbox 360 executable designed to apply freedom-unlocking patches to the kernel
-and hypervisor. For use with
+Xbox 360 executable designed to apply freedom-unlocking patches from xeBuild
+to the kernel and hypervisor at runtime. For use with
 [Xbox360BadUpdate](https://github.com/grimdoomer/Xbox360BadUpdate).
 
 Nowhere near finished or ready or stable or anything, but might be good enough
@@ -13,9 +13,15 @@ for some.
 > This is not, and never will be, a "softmod" or CFW - all patches are temporary
 > until you reboot!
 
+> [!CAUTION]
+> **DO NOT** run any homebrew that modifies any file on or installs anything to
+> the NAND, and **DO NOT** try to flash a modified NAND. **YOU WILL BRICK YOUR
+> CONSOLE!**
+
 > [!WARNING] 
-> Disconnect from Xbox Live before running BadUpdate and do NOT run homebrew
-> with an Xbox Live-enabled profile.
+> Completely disconnect from Xbox Live and the internet before running BadUpdate
+> and do NOT reconnect, and do NOT run homebrew with an Xbox Live-enabled profile.
+> **You could risk a ban!**
 
 ## Features
 
@@ -33,15 +39,15 @@ for some.
 
 ## TODO
 
-* Userland memory protection patches
-* Actual patch compiler and loader
+* Actual patch loader
 * Daaaashlaaaaaaunch?
 
 ## Credits
 
 * ikari's original freeBOOT
-* cOz et al. for xeBuild 17559 patches
-  (see also https://www.xbins.org/nfo.php?file=xboxnfo2430.nfo)
-* RGLoader 
+* cOz et al. for xeBuild 17559 patches and Dashlaunch
+  (see also https://www.xbins.org/nfo.php?file=xboxnfo2430.nfo,
+  https://www.xbins.org/nfo.php?file=xboxnfo2431.nfo)
+* RGLoader
 
 (let me know if I got anything wrong!)

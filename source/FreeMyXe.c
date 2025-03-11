@@ -1,10 +1,33 @@
 #include <xtl.h>
 #include <stdint.h>
+#include <string.h>
 #include "xboxkrnl.h"
 #include "ppcasm.h"
 #include "fs.h"
 #include "hv_funcs.h"
 #include "version.h"
+#include "locale.h"
+
+LocalisationMessages_t english = {
+    L"About to start patching HV and kernel...\n\nYour CPU key is:\n%S\n\nWrite that down and keep it safe!",
+    L"OK",
+    L"Yay!",
+    L"Launch XeLL instead",
+    L"Failed to launch XeLL?! Oh well, I'll patch the HV and kernel anyway...",
+    L"Hypervisor and kernel have been patched!\n\nYour CPU key is:\n%S\n\nSource code for FreeMyXe:\ngithub.com/InvoxiPlayGames/FreeMyXe\n\nHave fun!"
+};
+
+// translation provided by lexd0g
+LocalisationMessages_t spanish = {
+    L"A punto de empezar a parchear el hipervisor y el kernel...\n\nLa clave de tu CPU es:\n%S\n\nEscr\u00EDbela y mantela segura!",
+    L"Vale",
+    L"Yupi!",
+    L"Lanzar XeLL en su lugar",
+    L"XeLL no se ha podido iniciar?! Bueno, parcheare el hipervisor y el kernel de todos modos...",
+    L"El hipervisor y el kernel han sido parcheados!\n\nLa clave de tu CPU es:\n%S\n\nC\u00F3digo fuente de FreeMyXe:\ngithub.com/InvoxiPlayGames/FreeMyXe\n\nDivi\u00E9rtete!"
+};
+
+LocalisationMessages_t *currentLocalisation = &english;
 
 static LPWSTR buttons[1] = {L"OK"};
 static MESSAGEBOX_RESULT result;
@@ -13,7 +36,7 @@ static wchar_t dialog_text_buffer[256];
 
 void MessageBox(wchar_t *text)
 {
-    if (XShowMessageBoxUI(0, L"FreeMyXe " FREEMYXE_VERSION, text, 1, buttons, 0, XMB_ALERTICON, &result, &overlapped) == ERROR_IO_PENDING)
+    if (XShowMessageBoxUI(XUSER_INDEX_ANY, L"FreeMyXe " FREEMYXE_VERSION, text, 1, buttons, 0, XMB_ALERTICON, &result, &overlapped) == ERROR_IO_PENDING)
     {
         while (!XHasOverlappedIoCompleted(&overlapped))
             Sleep(50);
@@ -23,7 +46,7 @@ void MessageBox(wchar_t *text)
 int MessageBoxMulti(wchar_t *text, wchar_t *button1, wchar_t *button2)
 {
     LPWSTR multiButtons[2] = {button1, button2};
-    if (XShowMessageBoxUI(0, L"FreeMyXe " FREEMYXE_VERSION, text, 2, multiButtons, 0, XMB_ALERTICON, &result, &overlapped) == ERROR_IO_PENDING)
+    if (XShowMessageBoxUI(XUSER_INDEX_ANY, L"FreeMyXe " FREEMYXE_VERSION, text, 2, multiButtons, 0, XMB_ALERTICON, &result, &overlapped) == ERROR_IO_PENDING)
     {
         while (!XHasOverlappedIoCompleted(&overlapped))
             Sleep(50);
@@ -63,7 +86,7 @@ void ApplyXeBuildPatches(uint8_t *patch_data)
     {
         uint32_t length;
         size_t size;
-        int i = 0;
+        uint32_t i = 0;
         // get the address - if it's 0xFFFFFFFF we've hit the end
         uint32_t address = patches[0];
         if (address == 0xFFFFFFFF)
@@ -78,9 +101,7 @@ void ApplyXeBuildPatches(uint8_t *patch_data)
         {
             if (address > 0x40000)
             {
-                // this isn't correct - the whole system locks up
-                uint64_t val = (*(uint64_t *)(0x80000000 | (address - 4)) & 0xFFFFFFFF00000000) | patches[i];
-                WriteHypervisorUInt64_RMCI(address, val);
+                *(uint32_t *)(0x80000000 | (address)) = patches[i];
             }
             else
             {
@@ -126,9 +147,13 @@ void LaunchXell()
     HypervisorExecute(0x800000001c000000, xell_buffer, sizeof(xell_buffer));
 }
 
+uint64_t returnTrue = (((uint64_t)LI(3, 1)) << 32) | (BLR);
+uint64_t returnZero = (((uint64_t)LI(3, 0)) << 32) | (BLR);
+
 void __cdecl main()
 {
     uint8_t cpu_key[0x10];
+    char cpu_key_string[0x21];
     // thanks libxenon!
     uint8_t rol_led_buf[16] = {0x99,0x00,0x00,0,0,0,0,0,0,0,0,0,0,0,0,0};
     int has_xell = 0;
@@ -157,22 +182,37 @@ void __cdecl main()
 
     // read out the CPU key
     ReadHypervisor(cpu_key, 0x20, sizeof(cpu_key));
+    sprintf(cpu_key_string, "%08X%08X%08X%08X", *(uint32_t *)(cpu_key + 0x0), *(uint32_t *)(cpu_key + 0x4), *(uint32_t *)(cpu_key + 0x8), *(uint32_t *)(cpu_key + 0xC));
 
     // check if we have a xell file
     has_xell = FSFileExists("GAME:\\xell-1f.bin") || FSFileExists("GAME:\\xell-gggggg.bin");
 
-    DbgPrint("CPU key: %08X%08X%08X%08X\n",
-        *(uint32_t *)(cpu_key + 0x0), *(uint32_t *)(cpu_key + 0x4), *(uint32_t *)(cpu_key + 0x8), *(uint32_t *)(cpu_key + 0xC));
+    DbgPrint("CPU key: %s\n", cpu_key_string);
 
-    wsprintfW(dialog_text_buffer, L"About to start patching HV and kernel...\n\nYour CPU key is:\n%08X%08X%08X%08X\n\nWrite that down and keep it safe!", *(uint32_t *)(cpu_key + 0x0), *(uint32_t *)(cpu_key + 0x4), *(uint32_t *)(cpu_key + 0x8), *(uint32_t *)(cpu_key + 0xC));
+    switch (XGetLanguage())
+    {
+        case XC_LANGUAGE_ENGLISH:
+            currentLocalisation = &english;
+            break;
+        case XC_LANGUAGE_SPANISH:
+            currentLocalisation = &spanish;
+            break;
+        default:
+            currentLocalisation = &english;
+            break;
+    }
+
+    buttons[0] = currentLocalisation->ok;
+
+    wsprintfW(dialog_text_buffer, currentLocalisation->about_to_patch, cpu_key_string);
 
     if (has_xell)
     {
-        int pick_result = MessageBoxMulti(dialog_text_buffer, L"OK", L"Launch XeLL instead");
+        int pick_result = MessageBoxMulti(dialog_text_buffer, currentLocalisation->ok, currentLocalisation->launch_xell_instead);
         if (pick_result == 1)
         {
             LaunchXell();
-            MessageBox(L"Failed to launch XeLL?! Oh well, I'll patch the HV and kernel anyway...");
+            MessageBox(currentLocalisation->failed_xell_launch);
         }
     }
     else
@@ -191,17 +231,66 @@ void __cdecl main()
     WriteHypervisor(0x0000154C, memory_protection_bytecode, sizeof(memory_protection_bytecode));
     // jump to the above shellcode
     WriteHypervisorUInt32(0x000011BC, 0x4800154E);
+    HypervisorClearCache(0x000011BC);
     HypervisorClearCache(0x0000154C);
 
     DbgPrint("Writing expansion signature patches...\n");
     WriteHypervisorUInt32(0x00030894, LI(3, 1)); // call to XeCryptBnQwBeSigVerify
     WriteHypervisorUInt32(0x00030914, LI(3, 0)); // call to memcmp
+    HypervisorClearCache(0x00030894);
+    HypervisorClearCache(0x00030914);
+
+    /*
+    DbgPrint("Writing expansion signature patches...\n");
+    // HvxExpansionInstall
+    WriteHypervisorUInt32(0x0003089c, 0x409A0008); // replace "sig != TRUE -> fail" check with a skip of the next byte if the sig was correct
+    WriteHypervisorUInt32(0x00030970, LI(29, 0)); // set a variable to 0 to avoid AES decryption
+    WriteHypervisorUInt32(0x00030974, NOP); // skip another validity check? idk
+    WriteHypervisorUInt32(0x00030978, NOP);
+    WriteHypervisorUInt32(0x000304e8, NOP); // remove flag check
+    WriteHypervisorUInt32(0x000304fc, NOP); // remove version check
+    HypervisorClearCache(0x0003089c);
+    HypervisorClearCache(0x00030970);
+    HypervisorClearCache(0x000304e8);
+
+    DbgPrint("Writing important patches...\n");
+    WriteHypervisorUInt64(0x0000A560, returnTrue);
+    HypervisorClearCache(0x0000A560);
+
+    DbgPrint("Writing XEX loading patches...\n");
+    // HvxLoadImageData - skip a hash check
+    WriteHypervisorUInt32(0x0002A30C, NOP);
+    WriteHypervisorUInt32(0x0002A310, NOP);
+    HypervisorClearCache(0x0002A30C);
+    // HvxResolveImports - patch a version check?
+    WriteHypervisorUInt32(0x0002AA80, NOP);
+    WriteHypervisorUInt32(0x0002AA8C, NOP);
+    HypervisorClearCache(0x0002AA80);
+    // HvxCreateImageMapping/HvxImageTransformKey subroutine, checks some key against 0x10010
+    WriteHypervisorUInt64(0x00024D58, returnTrue);
+    HypervisorClearCache(0x00024D58);
+    // HvxCreateImageMapping remove segment hash check
+    WriteHypervisorUInt32(0x0002CAE8, LI(3, 0));
+    HypervisorClearCache(0x0002CAE8);
+
+    DbgPrint("Writing XeKeys patches...\n");
+    WriteHypervisorUInt64(0x00006BB0, returnZero); // HvxSecuritySetDetected
+    HypervisorClearCache(0x00006BB0);
+    WriteHypervisorUInt64(0x00006C48, returnZero); // HvxSecurityGetDetected
+    HypervisorClearCache(0x00006C48);
+    WriteHypervisorUInt64(0x00006C98, returnZero); // HvxSecuritySetActivated
+    HypervisorClearCache(0x00006C98);
+    WriteHypervisorUInt64(0x00006D08, returnZero); // HvxSecurityGetActivated
+    WriteHypervisorUInt64(0x00006D58, returnZero); // HvxSecuritySetStat
+    HypervisorClearCache(0x00006D08);
+    WriteHypervisorUInt32(0x0000813C, 0x48000030); // HvxKeysGetKey skip over key_flags check
+    HypervisorClearCache(0x0000813C);
+
+    */
 
     DbgPrint("HV patched! Patching kernel\n");
 
     {
-        uint64_t returnTrue = (((uint64_t)LI(3, 1)) << 32) | (BLR);
-        uint64_t returnZero = (((uint64_t)LI(3, 0)) << 32) | (BLR);
         uint64_t valTo = 0;
         HANDLE hKernel = NULL;
         PDWORD pdwFunction = NULL;
@@ -212,6 +301,8 @@ void __cdecl main()
         XexGetProcedureAddress(hKernel, 600, &pdwFunction);
         WriteHypervisorUInt64_RMCI(MmGetPhysicalAddress(pdwFunction), returnTrue);
         HypervisorClearCache(MmGetPhysicalAddress(pdwFunction));
+        //pdwFunction[0] = LI(3, 1);
+        //pdwFunction[1] = BLR;
 
         // patch XeKeysVerifyPIRSSignature
         XexGetProcedureAddress(hKernel, 862, &pdwFunction);
@@ -255,12 +346,14 @@ void __cdecl main()
         WriteHypervisorUInt64_RMCI(MmGetPhysicalAddress(pdwFunction), valTo);
         HypervisorClearCache(MmGetPhysicalAddress(pdwFunction));
     }
+
+    //ApplyXeBuildPatches(xebuild_17559_hvkern_patchset);
     
     DbgPrint("Done\n");
 
     Sleep(500);
 
-    buttons[0] = L"Yay!";
-    wsprintfW(dialog_text_buffer, L"Hypervisor and kernel have been patched!\n\nYour CPU key is:\n%08X%08X%08X%08X\n\nSource code for FreeMyXe:\ngithub.com/InvoxiPlayGames/FreeMyXe\n\nHave fun!", *(uint32_t *)(cpu_key + 0x0), *(uint32_t *)(cpu_key + 0x4), *(uint32_t *)(cpu_key + 0x8), *(uint32_t *)(cpu_key + 0xC));
+    buttons[0] = currentLocalisation->yay;
+    wsprintfW(dialog_text_buffer, currentLocalisation->patch_successful, cpu_key_string);
     MessageBox(dialog_text_buffer);
 }
